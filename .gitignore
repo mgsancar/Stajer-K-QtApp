@@ -1,2 +1,7 @@
-build
 *.pro.user
+*build-*
+CMakeLists.txt.*
+.vscode
+build/
+.idea/
+docker_build/

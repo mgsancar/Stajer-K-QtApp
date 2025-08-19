@@ -5,7 +5,7 @@
 #include <QMainWindow>
 #include <QFileSystemModel>
 #include <QGraphicsScene>
-#include <MyGraphicsView.h>
+
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
@@ -14,7 +14,7 @@ class MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    MainWindow(QWidget *parent = nullptr);
+    MainWindow(QString bin_folder_path, QWidget *parent = nullptr);
     ~MainWindow();
 private slots:
     void on_listView_clicked(const QModelIndex &index   );
@@ -22,10 +22,10 @@ private slots:
     void on_btnSelectFolder_clicked();
 private:
     Ui::MainWindow *ui;
-    QFileSystemModel *model;
-    QGraphicsScene *scene;
-    QString selectedFolderPath;
-    QString BinFile;
+    QFileSystemModel *m_model;
+    QGraphicsScene *m_scene;
+    QString m_selectedFolderPath;
+    QString m_binFile;
 private:
     double currentZoom = 1.0;
     const double minZoom = 0.5;
