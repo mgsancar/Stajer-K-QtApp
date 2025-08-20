@@ -3,6 +3,7 @@
 
 #include "mygraphicsview.h"
 
+#include <QFileSystemModel>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QDir>
@@ -14,17 +15,49 @@
 #include <QGraphicsPixmapItem>
 #include <QDebug>
 
-MainWindow::MainWindow(QString bin_folder_path, QWidget *parent)
+MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script_path, const QString &emulator_cli_path, QWidget *parent)
     : QMainWindow(parent)
+    , m_runScript(run_script_path)
+    , m_emulatorCli(emulator_cli_path)
     , ui(new Ui::MainWindow)
     , m_model(new QFileSystemModel(this))
     , m_scene(new QGraphicsScene(this))
 {
     ui->setupUi(this);
 
+    m_proc = new QProcess(this);
+
+    // (optional) merge channels so you read both together
+    // m_proc->setProcessChannelMode(QProcess::MergedChannels);
+
+    // show logs somewhere if you have a QTextEdit/QPlainTextEdit named logEdit
+    connect(m_proc, &QProcess::readyReadStandardOutput, this, [this]{
+        const auto out = m_proc->readAllStandardOutput();
+        // if you don't have a log widget, at least qDebug it:
+        qDebug().noquote() << QString::fromLocal8Bit(out);
+    });
+
+    connect(m_proc, &QProcess::started, this, [this]{
+        ui->runBtn->setEnabled(false);
+        ui->stopBtn->setEnabled(true);
+    });
+
+    connect(m_proc, qOverload<int,QProcess::ExitStatus>(&QProcess::finished),
+            this, [this](int code, QProcess::ExitStatus st){
+                qDebug() << "Process finished. code =" << code << "exitStatus =" << st;
+                ui->runBtn->setEnabled(true);
+                ui->stopBtn->setEnabled(false);
+            });
+
+    connect(m_proc, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e){
+        qWarning() << "Process error:" << e << m_proc->errorString();
+        ui->runBtn->setEnabled(true);
+        ui->stopBtn->setEnabled(false);
+    });
+
     m_model->setFilter(QDir::Files | QDir::NoDotAndDotDot);
     m_model->setRootPath(bin_folder_path);
-    m_model->setNameFilters(QStringList() << "*.bin");
+    m_model->setNameFilters( QStringList() << "*.bin" );
     m_model->setNameFilterDisables(false);
 
     ui->lineEdit->setText( bin_folder_path );
@@ -90,7 +123,7 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::on_btnSelectFolder_clicked()
+void MainWindow::on_selectFolderBtn_clicked()
 {
     QString folderPath = QFileDialog::getExistingDirectory(this, "Select Folder", QDir::homePath());
     if (!folderPath.isEmpty())
@@ -107,7 +140,10 @@ void MainWindow::on_btnSelectFolder_clicked()
 void MainWindow::on_listView_clicked(const QModelIndex &index)
 {
     m_scene->clear();
+    ui->BinLine->clear();
+    ui->runBtn->setEnabled(false);
 
+    m_selectedFolderPath = m_model->filePath(index);
     QString filePath = m_model->filePath(index);
     QString jpgFile = filePath.replace( ".bin", ".jpg");
 
@@ -127,31 +163,37 @@ void MainWindow::on_listView_clicked(const QModelIndex &index)
     ui->graphicsView->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
     ui->graphicsView->centerOn(item);
 
-    ui->graphicsView->setDragMode(QGraphicsView::ScrollHandDrag);
     ui->BinLine->setText(m_model->fileName(index));
+    ui->runBtn->setEnabled(true);
 }
 
-void MainWindow::on_checkBinButton_clicked()
+void MainWindow::on_runBtn_clicked()
 {
-    QString jpgName = ui->BinLine->text();
-    QString binFile = jpgName.replace( ".jpg", ".bin");
-    QDir dir(m_selectedFolderPath);
+    if (m_selectedFolderPath.isEmpty())
+        return;
 
-    if (dir.exists(binFile))
-    {
-        ui->label->setText( binFile + " found.");
+    // build args for your script
+    QStringList args { m_emulatorCli, "--replay_file", m_selectedFolderPath };
 
-        QStringList arguments;
-        arguments << "--name" << "fusion";
-        QString program ="yeniCli.exe";
-        QProcess myProcess{};
-        myProcess.start(program, arguments);
-        myProcess.waitForFinished();
-    }
-    else
-    {
-        ui->label->setText(binFile + " not found.");
-    }
+    // (optional) set working dir to the file’s folder
+    m_proc->setWorkingDirectory(QFileInfo(m_selectedFolderPath).absolutePath());
+
+    // If your script has execute bit + shebang, this is enough:
+    m_proc->start(m_runScript, args);
+
+    // If the script is not executable or lacks a shebang, use bash:
+    // m_proc->setProgram("/bin/bash");
+    // m_proc->setArguments(QStringList() << m_runScript << args);
+    // m_proc->start();
 }
 
+void MainWindow::on_stopBtn_clicked()
+{
+    if (!m_proc || m_proc->state() == QProcess::NotRunning)
+        return;
+
+    m_proc->terminate();                 // ask nicely
+    if (!m_proc->waitForFinished(3000))  // give it ~3s to exit
+        m_proc->kill();                  // then force kill
+}
 

@@ -11,32 +11,35 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>MainWindow</string>
+   <string>Wetend Emulator GUI</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QGridLayout" name="gridLayout_2">
-    <item row="2" column="2">
+    <item row="1" column="2">
      <layout class="QHBoxLayout" name="horizontalLayout_2">
       <item>
        <widget class="QLineEdit" name="BinLine"/>
       </item>
       <item>
-       <widget class="QPushButton" name="checkBinButton">
+       <widget class="QPushButton" name="runBtn">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
         <property name="text">
          <string>Run</string>
         </property>
        </widget>
       </item>
-     </layout>
-    </item>
-    <item row="0" column="2">
-     <layout class="QVBoxLayout" name="verticalLayout">
       <item>
-       <widget class="MyGraphicsView" name="graphicsView"/>
+       <widget class="QPushButton" name="stopBtn">
+        <property name="text">
+         <string>Stop</string>
+        </property>
+       </widget>
       </item>
      </layout>
     </item>
-    <item row="0" column="0" rowspan="3" colspan="2">
+    <item row="0" column="0" rowspan="2" colspan="2">
      <layout class="QGridLayout" name="gridLayout">
       <item row="1" column="0">
        <layout class="QVBoxLayout" name="verticalLayout_2">
@@ -46,7 +49,7 @@
            <widget class="QLineEdit" name="lineEdit"/>
           </item>
           <item>
-           <widget class="QPushButton" name="btnSelectFolder">
+           <widget class="QPushButton" name="selectFolderBtn">
             <property name="enabled">
              <bool>true</bool>
             </property>
@@ -83,12 +86,12 @@
       </item>
      </layout>
     </item>
-    <item row="1" column="2">
-     <widget class="QLabel" name="label">
-      <property name="text">
-       <string/>
-      </property>
-     </widget>
+    <item row="0" column="2">
+     <layout class="QVBoxLayout" name="verticalLayout">
+      <item>
+       <widget class="MyGraphicsView" name="graphicsView"/>
+      </item>
+     </layout>
     </item>
    </layout>
   </widget>
@@ -115,22 +118,5 @@
   <tabstop>listView</tabstop>
  </tabstops>
  <resources/>
- <connections>
-  <connection>
-   <sender>checkBinButton</sender>
-   <signal>clicked()</signal>
-   <receiver>label</receiver>
-   <slot>show()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>803</x>
-     <y>529</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>552</x>
-     <y>488</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>

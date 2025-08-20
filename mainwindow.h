@@ -1,10 +1,11 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
-#include <QGraphicsView>
-#include <QWheelEvent>
+
 #include <QMainWindow>
-#include <QFileSystemModel>
-#include <QGraphicsScene>
+
+class QFileSystemModel;
+class QGraphicsScene;
+class QProcess;
 
 QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
@@ -14,19 +15,27 @@ class MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    MainWindow(QString bin_folder_path, QWidget *parent = nullptr);
+    MainWindow(const QString& bin_folder_path,
+               const QString& run_script,
+               const QString& emulator_cli,
+               QWidget *parent = nullptr);
     ~MainWindow();
 private slots:
     void on_listView_clicked(const QModelIndex &index   );
-    void on_checkBinButton_clicked();
-    void on_btnSelectFolder_clicked();
+    void on_runBtn_clicked();
+    void on_selectFolderBtn_clicked();
+
+    void on_stopBtn_clicked();
+
 private:
     Ui::MainWindow *ui;
+    QProcess* m_proc = nullptr;
     QFileSystemModel *m_model;
     QGraphicsScene *m_scene;
     QString m_selectedFolderPath;
     QString m_binFile;
-private:
+    const QString m_runScript;
+    const QString m_emulatorCli;
     double currentZoom = 1.0;
     const double minZoom = 0.5;
     const double maxZoom = 3.0;
