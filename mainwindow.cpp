@@ -39,37 +39,46 @@ MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script
     });
 
     connect(m_proc, &QProcess::started, this, [this]{
+        ui->lineEdit->setEnabled(false);
+        ui->listView->setEnabled(false);
+        ui->selectFolderBtn->setEnabled(false);
         ui->runBtn->setEnabled(false);
         ui->stopBtn->setEnabled(true);
         m_scriptStdoutBuf.clear();
+    });
+
+    connect(m_proc, qOverload<int,QProcess::ExitStatus>(&QProcess::finished), this, [this](int code, QProcess::ExitStatus st){
+        qDebug() << "run_in_screen.sh finished. code =" << code << "exitStatus =" << st;
+
+        // 1) Eğer sen on_runBtn_clicked içinde session adı verdiysen, onu kullan
+        // 2) Aksi halde script çıktısından çek
+        if (m_lastSessionName.isEmpty())
+        {
+            static QRegularExpression re(R"(Started screen session:\s*([^\s]+))");
+            auto m = re.match(m_scriptStdoutBuf);
+            if (m.hasMatch())
+                m_lastSessionName = m.captured(1).trimmed();
+        }
+
+        if (m_lastSessionName.isEmpty())
+            qWarning() << "Session adı alınamadı. Çıktı:" << m_scriptStdoutBuf;
+        else
+            printScreenInfo(m_lastSessionName);
+
+        ui->lineEdit->setEnabled(true);
+        ui->listView->setEnabled(true);
+        ui->selectFolderBtn->setEnabled(true);
+        ui->runBtn->setEnabled(true);
+        ui->stopBtn->setEnabled(false);
         m_lastSessionName.clear();
     });
 
-    connect(m_proc, qOverload<int,QProcess::ExitStatus>(&QProcess::finished),
-            this, [this](int code, QProcess::ExitStatus st){
-                qDebug() << "run_in_screen.sh finished. code =" << code << "exitStatus =" << st;
-
-                // 1) Eğer sen on_runBtn_clicked içinde session adı verdiysen, onu kullan
-                // 2) Aksi halde script çıktısından çek
-                if (m_lastSessionName.isEmpty()) {
-                    static QRegularExpression re(R"(Started screen session:\s*([^\s]+))");
-                    auto m = re.match(m_scriptStdoutBuf);
-                    if (m.hasMatch())
-                        m_lastSessionName = m.captured(1).trimmed();
-                }
-
-                if (m_lastSessionName.isEmpty()) {
-                    qWarning() << "Session adı alınamadı. Çıktı:" << m_scriptStdoutBuf;
-                } else {
-                    printScreenInfo(m_lastSessionName);
-                }
-
-                ui->runBtn->setEnabled(true);
-                ui->stopBtn->setEnabled(false);
-            });
-
     connect(m_proc, &QProcess::errorOccurred, this, [this](QProcess::ProcessError e){
         qWarning() << "Process error:" << e << m_proc->errorString();
+
+        ui->lineEdit->setEnabled(true);
+        ui->listView->setEnabled(true);
+        ui->selectFolderBtn->setEnabled(true);
         ui->runBtn->setEnabled(true);
         ui->stopBtn->setEnabled(false);
     });
@@ -126,7 +135,6 @@ MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script
             ui->graphicsView->scale(1.0 / 1.2, 1.0 / 1.2);
             currentZoom /= 1.2;
         }
-
     });
 
     connect(plusBtn, &QPushButton::clicked, this, [=]() {
@@ -188,26 +196,6 @@ void MainWindow::on_listView_clicked(const QModelIndex &index)
     ui->runBtn->setEnabled(true);
 }
 
-/*void MainWindow::on_runBtn_clicked()
-{
-    if (m_selectedFolderPath.isEmpty())
-        return;
-
-    // build args for your script
-    QStringList args { m_emulatorCli, "--replay_file", m_selectedFolderPath };
-
-    // (optional) set working dir to the file’s folder
-    m_proc->setWorkingDirectory(QFileInfo(m_selectedFolderPath).absolutePath());
-
-    // If your script has execute bit + shebang, this is enough:
-    m_proc->start(m_runScript, args);
-
-    // If the script is not executable or lacks a shebang, use bash:
-    // m_proc->setProgram("/bin/bash");
-    // m_proc->setArguments(QStringList() << m_runScript << args);
-    // m_proc->start();
-}*/
-
 void MainWindow::on_runBtn_clicked()
 {
     if (m_selectedFolderPath.isEmpty())
@@ -217,26 +205,17 @@ void MainWindow::on_runBtn_clicked()
     QString appName = QFileInfo(m_emulatorCli).baseName();
     m_lastSessionName = appName + "_" + ui->binLine->displayText().remove(".bin");
 
-    qDebug() << "Starting new screen session:" << m_lastSessionName;
-
     // Script argümanları: [--session NAME] -- <APP> <APP_ARGS...>
     QStringList args;
     args << "--session" << m_lastSessionName
          << "--"
          << m_emulatorCli << "--replay_file" << m_selectedFolderPath;
 
-    qDebug().noquote() << "Running script with args:" << m_runScript << args;
-
-    // return;
     // (opsiyonel) çalışma dizini dosyanın bulunduğu klasör olsun
     m_proc->setWorkingDirectory(QFileInfo(m_selectedFolderPath).absolutePath());
 
     // Script shebang + executable ise:
     m_proc->start(m_runScript, args);
-    if (!m_proc->waitForStarted())
-        qDebug() << "Başlatılamadı:" << m_proc->errorString();
-    else
-        qDebug() << "Screen oturumu script ile başlatıldı.";
 
     // Değilse:
     // m_proc->setProgram("/bin/sh");
@@ -244,16 +223,23 @@ void MainWindow::on_runBtn_clicked()
     // m_proc->start();
 }
 
+void sendLine(const QString& name, const QString& line) {
+    QProcess::execute("screen", {"-S", name, "-p", "0", "-X", "stuff", line + "\r\n"});
+}
+
 void MainWindow::on_stopBtn_clicked()
 {
     if (!m_proc || m_proc->state() == QProcess::NotRunning)
         return;
 
-    qDebug() << "Stopping process:" << m_proc->program() << m_proc->arguments();
-    m_proc->write("exit\n");             // send exit command to script
-    m_proc->terminate();                 // ask nicely
-    if (!m_proc->waitForFinished(3000))  // give it ~3s to exit
-        m_proc->kill();                  // then force kill
+    if (m_lastSessionName.isEmpty())
+    {
+        qWarning() << "Session adı boş, durdurma işlemi yapılamıyor.";
+        return;
+    }
+
+    qDebug().noquote() << "Stopping screen session:" << m_lastSessionName;
+    sendLine(m_lastSessionName, "exit()"); // send exit command to script
 }
 
 static QString runAndReadAll(const QString& program, const QStringList& args,

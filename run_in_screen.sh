@@ -81,27 +81,23 @@ fi
 # ---- run inside screen (detached)
 if [ "$KEEP_OPEN" -eq 0 ]; then
   if [ -n "$LOGFILE" ]; then
-    echo "A"
     screen -DmS "$SESSION" -L -Logfile "$LOGFILE" -- "$APP" "$@"
   else
-    echo "B"
     screen -DmS "$SESSION" -- "$APP" "$@"
   fi
 else
   # Keep window open after the app exits (drops you into a shell)
   if [ -n "$LOGFILE" ]; then
-    echo "C"
     screen -DmS "$SESSION" -L -Logfile "$LOGFILE" -- /bin/sh -c \
       'exec "$0" "$@"; code=$?; echo; echo "[process exited with code $code]"; exec /bin/sh' \
       "$APP" "$@"
   else
-    echo "D"
     screen -DmS "$SESSION" -- /bin/sh -c \
       'exec "$0" "$@"; code=$?; echo; echo "[process exited with code $code]"; exec /bin/sh' \
       "$APP" "$@"
   fi
 fi
 
-echo "Started screen session: $SESSION"
-echo "Attach with: screen -r $SESSION"
+#echo "Started screen session: $SESSION"
+#echo "Attach with: screen -r $SESSION"
 
