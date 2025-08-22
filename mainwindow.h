@@ -30,6 +30,8 @@ private slots:
 private:
     Ui::MainWindow *ui;
     QProcess* m_proc = nullptr;
+    QString m_scriptStdoutBuf;
+    QString m_lastSessionName;
     QFileSystemModel *m_model;
     QGraphicsScene *m_scene;
     QString m_selectedFolderPath;
@@ -39,6 +41,8 @@ private:
     double currentZoom = 1.0;
     const double minZoom = 0.5;
     const double maxZoom = 3.0;
+
+    void printScreenInfo(const QString& sessionName);
 };
 #endif // MAINWINDOW_H
 

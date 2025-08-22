@@ -18,7 +18,11 @@
     <item row="1" column="2">
      <layout class="QHBoxLayout" name="horizontalLayout_2">
       <item>
-       <widget class="QLineEdit" name="BinLine"/>
+       <widget class="QLineEdit" name="binLine">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+       </widget>
       </item>
       <item>
        <widget class="QPushButton" name="runBtn">

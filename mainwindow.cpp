@@ -26,25 +26,44 @@ MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script
     ui->setupUi(this);
 
     m_proc = new QProcess(this);
+    m_proc->setProcessChannelMode(QProcess::SeparateChannels);
 
-    // (optional) merge channels so you read both together
-    // m_proc->setProcessChannelMode(QProcess::MergedChannels);
-
-    // show logs somewhere if you have a QTextEdit/QPlainTextEdit named logEdit
     connect(m_proc, &QProcess::readyReadStandardOutput, this, [this]{
-        const auto out = m_proc->readAllStandardOutput();
-        // if you don't have a log widget, at least qDebug it:
-        qDebug().noquote() << QString::fromLocal8Bit(out);
+        const QString chunk = QString::fromLocal8Bit(m_proc->readAllStandardOutput());
+        m_scriptStdoutBuf += chunk;
+        qDebug().noquote() << chunk; // anlık log görmek istersen
+    });
+
+    connect(m_proc, &QProcess::readyReadStandardError, this, [this]{
+        qWarning().noquote() << QString::fromLocal8Bit(m_proc->readAllStandardError());
     });
 
     connect(m_proc, &QProcess::started, this, [this]{
         ui->runBtn->setEnabled(false);
         ui->stopBtn->setEnabled(true);
+        m_scriptStdoutBuf.clear();
+        m_lastSessionName.clear();
     });
 
     connect(m_proc, qOverload<int,QProcess::ExitStatus>(&QProcess::finished),
             this, [this](int code, QProcess::ExitStatus st){
-                qDebug() << "Process finished. code =" << code << "exitStatus =" << st;
+                qDebug() << "run_in_screen.sh finished. code =" << code << "exitStatus =" << st;
+
+                // 1) Eğer sen on_runBtn_clicked içinde session adı verdiysen, onu kullan
+                // 2) Aksi halde script çıktısından çek
+                if (m_lastSessionName.isEmpty()) {
+                    static QRegularExpression re(R"(Started screen session:\s*([^\s]+))");
+                    auto m = re.match(m_scriptStdoutBuf);
+                    if (m.hasMatch())
+                        m_lastSessionName = m.captured(1).trimmed();
+                }
+
+                if (m_lastSessionName.isEmpty()) {
+                    qWarning() << "Session adı alınamadı. Çıktı:" << m_scriptStdoutBuf;
+                } else {
+                    printScreenInfo(m_lastSessionName);
+                }
+
                 ui->runBtn->setEnabled(true);
                 ui->stopBtn->setEnabled(false);
             });
@@ -66,7 +85,8 @@ MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script
 
     connect(ui->lineEdit, &QLineEdit::editingFinished, this, [=]() {
         QString path = ui->lineEdit->text();
-        if (!path.isEmpty()) {
+        if (!path.isEmpty())
+        {
             m_model->setRootPath(path);
             ui->listView->setRootIndex(m_model->index(path));
         }
@@ -140,10 +160,11 @@ void MainWindow::on_selectFolderBtn_clicked()
 void MainWindow::on_listView_clicked(const QModelIndex &index)
 {
     m_scene->clear();
-    ui->BinLine->clear();
+    ui->binLine->clear();
     ui->runBtn->setEnabled(false);
 
     m_selectedFolderPath = m_model->filePath(index);
+
     QString filePath = m_model->filePath(index);
     QString jpgFile = filePath.replace( ".bin", ".jpg");
 
@@ -163,11 +184,11 @@ void MainWindow::on_listView_clicked(const QModelIndex &index)
     ui->graphicsView->fitInView(m_scene->sceneRect(), Qt::KeepAspectRatio);
     ui->graphicsView->centerOn(item);
 
-    ui->BinLine->setText(m_model->fileName(index));
+    ui->binLine->setText(m_model->fileName(index));
     ui->runBtn->setEnabled(true);
 }
 
-void MainWindow::on_runBtn_clicked()
+/*void MainWindow::on_runBtn_clicked()
 {
     if (m_selectedFolderPath.isEmpty())
         return;
@@ -185,6 +206,42 @@ void MainWindow::on_runBtn_clicked()
     // m_proc->setProgram("/bin/bash");
     // m_proc->setArguments(QStringList() << m_runScript << args);
     // m_proc->start();
+}*/
+
+void MainWindow::on_runBtn_clicked()
+{
+    if (m_selectedFolderPath.isEmpty())
+        return;
+
+    // Kendin session üret
+    QString appName = QFileInfo(m_emulatorCli).baseName();
+    m_lastSessionName = appName + "_" + ui->binLine->displayText().remove(".bin");
+
+    qDebug() << "Starting new screen session:" << m_lastSessionName;
+
+    // Script argümanları: [--session NAME] -- <APP> <APP_ARGS...>
+    QStringList args;
+    args << "--session" << m_lastSessionName
+         << "--"
+         << m_emulatorCli << "--replay_file" << m_selectedFolderPath;
+
+    qDebug().noquote() << "Running script with args:" << m_runScript << args;
+
+    // return;
+    // (opsiyonel) çalışma dizini dosyanın bulunduğu klasör olsun
+    m_proc->setWorkingDirectory(QFileInfo(m_selectedFolderPath).absolutePath());
+
+    // Script shebang + executable ise:
+    m_proc->start(m_runScript, args);
+    if (!m_proc->waitForStarted())
+        qDebug() << "Başlatılamadı:" << m_proc->errorString();
+    else
+        qDebug() << "Screen oturumu script ile başlatıldı.";
+
+    // Değilse:
+    // m_proc->setProgram("/bin/sh");
+    // m_proc->setArguments(QStringList() << m_runScript << args);
+    // m_proc->start();
 }
 
 void MainWindow::on_stopBtn_clicked()
@@ -192,8 +249,56 @@ void MainWindow::on_stopBtn_clicked()
     if (!m_proc || m_proc->state() == QProcess::NotRunning)
         return;
 
+    qDebug() << "Stopping process:" << m_proc->program() << m_proc->arguments();
+    m_proc->write("exit\n");             // send exit command to script
     m_proc->terminate();                 // ask nicely
     if (!m_proc->waitForFinished(3000))  // give it ~3s to exit
         m_proc->kill();                  // then force kill
 }
 
+static QString runAndReadAll(const QString& program, const QStringList& args,
+                             int timeoutMs = 3000, int* exitCodeOut = nullptr)
+{
+    QProcess p;
+    p.setProcessChannelMode(QProcess::MergedChannels);
+    p.start(program, args);
+
+    if (!p.waitForStarted(timeoutMs))
+    {
+        if (exitCodeOut) *exitCodeOut = -1;
+        return QStringLiteral("[failed to start]");
+    }
+
+    p.waitForFinished(timeoutMs);
+
+    if (exitCodeOut)
+        *exitCodeOut = p.exitCode();
+
+    return QString::fromLocal8Bit(p.readAllStandardOutput());
+}
+
+void MainWindow::printScreenInfo(const QString& sessionName)
+{
+    qDebug() << "=== screen -ls ===";
+    int lsCode = 0;
+    qDebug().noquote() << runAndReadAll("screen", {"-ls"}, 4000, &lsCode).trimmed();
+    qDebug() << "screen -ls exitCode:" << lsCode;
+
+    qDebug() << "=== screen info for" << sessionName << "===";
+    int infoCode = 0;
+    auto infoOut = runAndReadAll("screen", {"-S", sessionName, "-Q", "info"}, 3000, &infoCode).trimmed();
+    qDebug().noquote() << infoOut;
+    qDebug() << "info exitCode:" << infoCode;
+
+    // Pencere listesi (desteklenen sürümlerde)
+    int winCode = 0;
+    auto winOut = runAndReadAll("screen", {"-S", sessionName, "-Q", "windows"}, 3000, &winCode).trimmed();
+    if (!winOut.isEmpty())
+        qDebug().noquote() << "windows:" << winOut, qDebug() << "windows exitCode:" << winCode;
+
+    // Proses id (varsa)
+    int pidCode = 0;
+    auto pidOut = runAndReadAll("screen", {"-S", sessionName, "-Q", "pid"}, 3000, &pidCode).trimmed();
+    if (!pidOut.isEmpty())
+        qDebug().noquote() << "pid:" << pidOut, qDebug() << "pid exitCode:" << pidCode;
+}
