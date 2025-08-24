@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
 
     QCommandLineParser cli;
 
-    QCommandLineOption bin_folder_opt { { "bin_folder" , "bf" }, "Specify sentetich binary folder where bin files are stored.", "folder", QDir::homePath() + "/projects/sentetich/bin" };
+    QCommandLineOption bin_folder_opt { { "bin_folder" , "bf" }, "Specify sentetich binary folder where bin files are stored.", "folder", QDir::homePath() };
     QCommandLineOption run_script_opt { { "run_script" , "rs" }, "Script file to run wetend emulator with given parameters.", "path", "run_emulator.sh" };
     QCommandLineOption emulator_cli_opt { { "emulator_cli" , "ec" }, "Wetend Emulator path.", "path", "WetendEmulatorCLI" };
 
