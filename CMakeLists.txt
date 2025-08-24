@@ -22,6 +22,13 @@ target_link_libraries(WetendEmulatorGUI PRIVATE
     Qt5::Widgets
 )
 
+add_custom_command(
+  TARGET WetendEmulatorGUI POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_directory
+          ${CMAKE_SOURCE_DIR}/script
+          $<TARGET_FILE_DIR:WetendEmulatorGUI>/script
+)
+
 #install(TARGETS LayOut
 #    BUNDLE DESTINATION .
 #    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
