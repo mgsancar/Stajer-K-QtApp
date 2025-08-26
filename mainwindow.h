@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include "util/named_type.h"
 
 class QFileSystemModel;
 class QGraphicsScene;
@@ -11,13 +12,19 @@ QT_BEGIN_NAMESPACE
 namespace Ui { class MainWindow; }
 QT_END_NAMESPACE
 
+using bin_folder = NamedType<QString, struct BinFolderTag>;
+using run_script = NamedType<QString, struct RunScriptTag>;
+using emulator_path = NamedType<QString, struct EmulatorPathTag>;
+using emulator_arg = NamedType<QString, struct EmulatorArgTag>;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    MainWindow(const QString& bin_folder_path,
-               const QString& run_script,
-               const QString& emulator_cli,
+    MainWindow(const bin_folder&,
+               const run_script&,
+               const emulator_path&,
+               const emulator_arg&,
                QWidget *parent = nullptr);
     ~MainWindow();
 private slots:
@@ -29,6 +36,9 @@ private slots:
 
 private:
     Ui::MainWindow *ui;
+    const QString m_runScript;
+    const QString m_emulatorCli;
+    const QString m_emulatorArg;
     QProcess* m_proc = nullptr;
     QString m_scriptStdoutBuf;
     QString m_lastSessionName;
@@ -36,8 +46,7 @@ private:
     QGraphicsScene *m_scene;
     QString m_selectedFolderPath;
     QString m_binFile;
-    const QString m_runScript;
-    const QString m_emulatorCli;
+
     double currentZoom = 1.0;
     const double minZoom = 0.5;
     const double maxZoom = 3.0;

@@ -22,12 +22,14 @@ int main(int argc, char *argv[])
     QCommandLineParser cli;
 
     QCommandLineOption bin_folder_opt { { "bin_folder" , "bf" }, "Specify sentetich binary folder where bin files are stored.", "folder", QDir::homePath() };
-    QCommandLineOption run_script_opt { { "run_script" , "rs" }, "Script file to run wetend emulator with given parameters.", "path", "script/run_emulator.sh" };
-    QCommandLineOption emulator_cli_opt { { "emulator_cli" , "ec" }, "Wetend Emulator path.", "path", "WetendEmulatorCLI" };
+    QCommandLineOption run_script_opt { { "run_script" , "rs" }, "Script file to run wetend emulator with given parameters.", "path", "script/run_in_screen.sh" };
+    QCommandLineOption emulator_path_opt { { "emulator_path" , "ep" }, "Wetend Emulator path.", "path", "WetendEmulatorCLI" };
+    QCommandLineOption emulator_arg_opt { { "emulator_arg" , "ea" }, "Wetend Emulator Argument.", "argument", "replay_file" };
 
     cli.addOptions( { bin_folder_opt,
                       run_script_opt,
-                      emulator_cli_opt
+                      emulator_path_opt,
+                      emulator_arg_opt
                     } );
     cli.addHelpOption();
     cli.addVersionOption();
@@ -68,17 +70,19 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    auto emulator_cli_path = cli.value( emulator_cli_opt );
+    auto emulator = cli.value( emulator_path_opt );
 
-    if ( !QFileInfo::exists( emulator_cli_path ) )
+    if ( !QFileInfo::exists( emulator ) )
     {
         qDebug() << "Error when processing"
-                     << emulator_cli_opt.names()
-                     << emulator_cli_path
+                     << emulator_path_opt.names()
+                     << emulator
                      << "doesn't exist.";
 
         // return 1;
     }
+
+    auto emulator_arg_name = cli.value( emulator_arg_opt );
 
     QString seperator( 100 , '=' );
 
@@ -87,7 +91,8 @@ int main(int argc, char *argv[])
     qDebug() << "version                :" << QApplication::applicationVersion();
     qDebug() << "bin folder             :" << bin_folder_path;
     qDebug() << "run script             :" << run_script_path;
-    qDebug() << "emulator cli           :" << emulator_cli_path;
+    qDebug() << "emulator path          :" << emulator;
+    qDebug() << "emulator argument      :" << emulator_arg_name;
 
     QTranslator translator;
     const QStringList uiLanguages = QLocale::system().uiLanguages();
@@ -99,7 +104,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    MainWindow w( bin_folder_path, run_script_path, emulator_cli_path );
+    MainWindow w( bin_folder{bin_folder_path}, run_script{run_script_path}, emulator_path{emulator}, emulator_arg{emulator_arg_name} );
     w.show();
     return app.exec();
 }

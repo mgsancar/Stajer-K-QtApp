@@ -15,10 +15,11 @@
 #include <QGraphicsPixmapItem>
 #include <QDebug>
 
-MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script_path, const QString &emulator_cli_path, QWidget *parent)
+MainWindow::MainWindow(const bin_folder& bin_folder, const run_script& run_script, const emulator_path& emulator, const emulator_arg& emulator_arg, QWidget *parent)
     : QMainWindow(parent)
-    , m_runScript(run_script_path)
-    , m_emulatorCli(emulator_cli_path)
+    , m_runScript(run_script.get())
+    , m_emulatorCli(emulator.get())
+    , m_emulatorArg(emulator_arg.get())
     , ui(new Ui::MainWindow)
     , m_model(new QFileSystemModel(this))
     , m_scene(new QGraphicsScene(this))
@@ -84,13 +85,13 @@ MainWindow::MainWindow(const QString &bin_folder_path, const QString &run_script
     });
 
     m_model->setFilter(QDir::Files | QDir::NoDotAndDotDot);
-    m_model->setRootPath(bin_folder_path);
+    m_model->setRootPath(bin_folder.get());
     m_model->setNameFilters( QStringList() << "*.bin" );
     m_model->setNameFilterDisables(false);
 
-    ui->lineEdit->setText( bin_folder_path );
+    ui->lineEdit->setText( bin_folder.get() );
     ui->listView->setModel(m_model);
-    ui->listView->setRootIndex(m_model->index(bin_folder_path));
+    ui->listView->setRootIndex(m_model->index(bin_folder.get()));
 
     connect(ui->lineEdit, &QLineEdit::editingFinished, this, [=]() {
         QString path = ui->lineEdit->text();
@@ -206,13 +207,16 @@ void MainWindow::on_runBtn_clicked()
     m_lastSessionName = appName + "_" + ui->binLine->displayText().remove(".bin");
 
     // Script argümanları: [--session NAME] -- <APP> <APP_ARGS...>
-    QStringList args;
-    args << "--session" << m_lastSessionName
+    QStringList args { QStringList() <<
+         "--session" << m_lastSessionName
          << "--"
-         << m_emulatorCli << "--replay_file" << m_selectedFolderPath;
+         << m_emulatorCli << QString{"--%1"}.arg(m_emulatorArg) << m_selectedFolderPath
+    };
+
+    qDebug() << "Starting screen session with command:" << m_runScript << args;
 
     // (opsiyonel) çalışma dizini dosyanın bulunduğu klasör olsun
-    m_proc->setWorkingDirectory(QFileInfo(m_selectedFolderPath).absolutePath());
+    // m_proc->setWorkingDirectory(QFileInfo(m_selectedFolderPath).absolutePath());
 
     // Script shebang + executable ise:
     m_proc->start(m_runScript, args);

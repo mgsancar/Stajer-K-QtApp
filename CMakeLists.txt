@@ -15,6 +15,7 @@ add_executable(WetendEmulatorGUI
     mygraphicsview.cpp mygraphicsview.h
     main.cpp
     mainwindow.cpp mainwindow.h mainwindow.ui
+    util/named_type.h
 )
 target_link_libraries(WetendEmulatorGUI PRIVATE
     Qt5::Core
